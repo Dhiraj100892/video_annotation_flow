@@ -13,14 +13,28 @@ import random
 from utils.image import _palette
 
 image_root_path = "/home/dhiraj/project/CFBI/robot_data/rgb/test"
-mask_root_path = "/home/dhiraj/project/CFBI/robot_data/flow/test"
+# mask_root_path = "/home/dhiraj/project/CFBI/robot_data/flow/test"
 # mask_root_path = "/home/dhiraj/project/CFBI/robot_data/Annotations"
+mask_root_path = "/home/dhiraj/project/CFBI/robot_data_2/true_doubles"
 
 
 class _EVAL_TEST(Dataset):
     def __init__(self, transform, seq_name):
+        self.reverse = True
+        self.consider_path = image_root_path
+        if self.reverse:
+            self.consider_path = mask_root_path
         self.seq_name = seq_name
-        self.img_seq = sorted(os.listdir(os.path.join(mask_root_path, seq_name)), reverse=True)
+        self.img_seq = sorted(
+            os.listdir(os.path.join(self.consider_path, seq_name)),
+            reverse=self.reverse,
+            key=lambda x: int(x.split(".")[0]),
+        )
+        print(self.img_seq)
+        if self.reverse:
+            self.img_seq = self.img_seq[:10]
+        else:
+            self.img_seq = self.img_seq[-10:]
         self.num_frame = len(self.img_seq)
         self.transform = transform
 
@@ -32,23 +46,33 @@ class _EVAL_TEST(Dataset):
         height = 400
         width = 400
         img_name = self.img_seq[idx]
-        current_img = cv2.imread(os.path.join(image_root_path, self.seq_name, img_name.split(".")[0] + ".jpg"))
+        current_img = cv2.imread(os.path.join(image_root_path, self.seq_name, img_name.split(".")[0] + ".jpg")).astype(
+            np.float32
+        )
         # print("img_path = {}".format(os.path.join(image_root_path, self.seq_name, img_name)))
-        current_img = cv2.resize(current_img, (400, 400)).astype(np.float32)
+        # current_img = cv2.resize(current_img, (400, 400)).astype(np.float32)
         # current_img = np.zeros((height, width, 3)).astype(np.float32)
         if idx == 0:
-            current_label = cv2.imread(os.path.join(mask_root_path, self.seq_name, img_name)).astype(np.uint8)
-            current_label = cv2.resize(current_label, (400, 400))
-            current_label[current_label > 0] = 1
-
-            # # TODO: remove, dummy mask for bin
-            # current_label *= 0
-            # current_label[200:] += 1
-            # current_label = current_label[:, :, 0].astype(np.uint8)
-
-            # TODO: for moving backward
-            current_label[180:] *= 0
-            current_label = np.sum(current_label, axis=-1).astype(np.uint8)
+            if self.reverse:
+                print("path = {}".format(os.path.join(mask_root_path, self.seq_name, img_name)))
+                current_label = cv2.imread(os.path.join(mask_root_path, self.seq_name, img_name))
+                # kernel = np.ones((5, 5), np.uint8)
+                # current_label = cv2.erode(current_label, kernel, iterations=3)
+                # current_label = cv2.resize(current_label, (400, 400))
+                # current_label[180:] *= 0
+                current_label = current_label[:, :, 2]
+                current_label[current_label < 150] = 0
+                current_label[current_label >= 150] = 1
+                current_label = current_label.astype(np.uint8)
+                # label = 255 * current_label
+                # cv2.imwrite("out/{}.jpg".format(self.seq_name), label)
+                print("cu = {}".format(current_label.sum()))
+            else:
+                # TODO: remove, dummy mask for bin
+                current_label = np.zeros_like(current_img).astype(np.uint8)
+                current_label *= 0
+                current_label[225:] += 1
+                current_label = current_label[:, :, 0].astype(np.uint8)
 
             sample = {"current_img": current_img, "current_label": current_label}
         else:
@@ -75,7 +99,7 @@ class EVAL_TEST(object):
         self.result_root = result_root
 
         # self.seqs = ['test1', 'test2', 'test3']
-        self.seqs = os.listdir(image_root_path)
+        self.seqs = os.listdir(mask_root_path)
 
     def __len__(self):
         return len(self.seqs)

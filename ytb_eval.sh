@@ -1,3 +1,4 @@
+rm -rf result
 config="configs.resnet101_cfbi"
 datasets="test"
 ckpt_path="./pretrain_models/resnet101_cfbi.pth"
